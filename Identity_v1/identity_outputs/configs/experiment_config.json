@@ -1,0 +1,22 @@
+{
+  "seed": 42,
+  "device": "cuda",
+  "raw_dataset_dir": "/home/harshad/Research_Final/Identity_Dataset",
+  "split_dir": "/home/harshad/Research_Final/Identity_Split",
+  "aligned_dir": "/home/harshad/Research_Final/Identity_Aligned_224",
+  "image_size": 224,
+  "embedding_dim": 128,
+  "batch_size": 32,
+  "learning_rate": 0.0003,
+  "weight_decay": 0.0001,
+  "epochs": 80,
+  "margin": 0.3,
+  "train_ratio": 0.8,
+  "alignment_margin": 0.3,
+  "min_images_per_identity": 3,
+  "rotation_range": 12,
+  "brightness_jitter": 0.3,
+  "contrast_jitter": 0.3,
+  "erasing_probability": 0.15,
+  "timestamp": "2026-02-12T01:40:25.628358"
+}

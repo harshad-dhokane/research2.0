@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────
+# Identity Recognition System — DPAIN
+# Python 3.10 | CUDA 12.8
+# ─────────────────────────────────────────────────────────────
+
+# ── Core Deep Learning ────────────────────────────────────────
+# Install PyTorch separately (see INSTALL.md) — version depends on CUDA
+# torch==2.10.0+cu128
+# torchvision==0.25.0+cu128
+
+# ── Face Alignment ────────────────────────────────────────────
+mediapipe==0.10.32
+
+# ── Image Processing ──────────────────────────────────────────
+opencv-python==4.13.0.92
+Pillow==12.1.0
+
+# ── Data Science ──────────────────────────────────────────────
+numpy==2.2.6
+pandas==2.3.3
+scikit-learn==1.7.2
+scipy==1.15.3
+
+# ── Visualization ─────────────────────────────────────────────
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# ── Training Utilities ────────────────────────────────────────
+tqdm==4.67.3
+
+# ── Notebook ──────────────────────────────────────────────────
+jupyter==1.1.1
+jupyterlab==4.5.3
+ipywidgets==8.1.8
+ipykernel==7.2.0

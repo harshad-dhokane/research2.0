@@ -1,0 +1,71 @@
+# =============================================================================
+# Research2.0 — Unified Requirements
+# Covers: EmoNeXt (FER) + Identity Recognition System (DPAIN)
+# Python  : 3.10+
+# CUDA    : 12.8  (GTX 1650 / any CUDA 12.x GPU)
+# Tested  : Ubuntu 22.04 / 24.04
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STEP 1 — PyTorch (CUDA 12.8)
+# Install BEFORE running `pip install -r requirements.txt`
+#
+#   pip install torch==2.10.0+cu128 torchvision==0.25.0+cu128 torchaudio==2.10.0+cu128 \
+#       --index-url https://download.pytorch.org/whl/cu128
+#
+# For CUDA 11.8:
+#   pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 torchaudio==2.1.2+cu118 \
+#       --index-url https://download.pytorch.org/whl/cu118
+#
+# For CPU-only (no GPU):
+#   pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 \
+#       --index-url https://download.pytorch.org/whl/cpu
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core Deep Learning ────────────────────────────────────────────────────────
+# torch, torchvision, torchaudio  →  installed separately (see STEP 1 above)
+timm==1.0.24                  # pretrained vision model hub (used for baseline comparisons)
+torchmetrics==1.8.2           # accuracy/F1 metrics utilities
+tensorboard==2.20.0           # training curve visualization
+
+# ── Image & Face Processing ───────────────────────────────────────────────────
+opencv-contrib-python==4.13.0.92   # face detection (YuNet ONNX), video I/O, CLAHE
+Pillow==12.1.0                     # image loading / saving
+mediapipe==0.10.32                 # face landmark detection (Identity pipeline)
+albumentations==2.0.8              # training augmentation (EmoNeXt pipeline)
+
+# ── Data Science ──────────────────────────────────────────────────────────────
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+scikit-learn==1.7.2
+imbalanced-learn==0.14.1       # over/under-sampling utilities
+
+# ── Visualization ─────────────────────────────────────────────────────────────
+matplotlib==3.10.8
+seaborn==0.13.2
+
+# ── Dimensionality Reduction ──────────────────────────────────────────────────
+umap-learn==0.5.11             # UMAP embedding visualization
+pynndescent==0.6.0             # required by umap-learn
+
+# ── Model Export ──────────────────────────────────────────────────────────────
+onnx==1.20.1                   # ONNX model export
+onnxruntime==1.23.2            # ONNX inference runtime (CPU)
+# onnxruntime-gpu==1.23.2      # GPU variant — uncomment if needed
+
+# ── Training Utilities ────────────────────────────────────────────────────────
+tqdm==4.67.3
+safetensors==0.7.0             # fast model weight serialization
+
+# ── Notebook & IDE ────────────────────────────────────────────────────────────
+jupyter==1.1.1
+jupyterlab==4.5.3
+ipywidgets==8.1.8
+ipykernel==7.2.0
+widgetsnbextension==4.0.15
+
+# ── Misc Utilities ────────────────────────────────────────────────────────────
+requests==2.32.5
+PyYAML==6.0.3
+packaging==26.0

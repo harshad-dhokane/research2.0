@@ -1,0 +1,30 @@
+{
+  "num_identities": 15,
+  "embedding_dim": 128,
+  "image_size": 224,
+  "class_mapping": {
+    "aamrapali": 0,
+    "asraar": 1,
+    "avanti": 2,
+    "bhavesh": 3,
+    "dnyaneshwari": 4,
+    "gayatri": 5,
+    "kamlesh": 6,
+    "naseeruddin": 7,
+    "nikhil": 8,
+    "nikhil kere": 9,
+    "rakesh": 10,
+    "rutuja": 11,
+    "sakshi": 12,
+    "satish": 13,
+    "zafar": 14
+  },
+  "gallery_size": 573,
+  "gallery_paths": [
+    "/home/harshad/Research_Final/Identity_Aligned_224/train/aamrapali/IMG_20251129_142213334_BURST000_COVER.jpg",
+    "/home/harshad/Research_Final/Identity_Aligned_224/train/aamrapali/IMG_20251129_142213334_BURST002.jpg",
+    "/home/harshad/Research_Final/Identity_Aligned_224/train/aamrapali/IMG_20251129_142213334_BURST003.jpg",
+    "/home/harshad/Research_Final/Identity_Aligned_224/train/aamrapali/IMG_20251129_142213334_BURST004.jpg",
+    "/home/harshad/Research_Final/Identity_Aligned_224/train/aamrapali/IMG_20251129_142213334_BURST005.jpg"
+  ]
+}

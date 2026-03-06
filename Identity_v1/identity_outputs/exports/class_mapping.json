@@ -1,0 +1,36 @@
+{
+  "class_to_idx": {
+    "aamrapali": 0,
+    "asraar": 1,
+    "avanti": 2,
+    "bhavesh": 3,
+    "dnyaneshwari": 4,
+    "gayatri": 5,
+    "kamlesh": 6,
+    "naseeruddin": 7,
+    "nikhil": 8,
+    "nikhil kere": 9,
+    "rakesh": 10,
+    "rutuja": 11,
+    "sakshi": 12,
+    "satish": 13,
+    "zafar": 14
+  },
+  "idx_to_class": {
+    "0": "aamrapali",
+    "1": "asraar",
+    "2": "avanti",
+    "3": "bhavesh",
+    "4": "dnyaneshwari",
+    "5": "gayatri",
+    "6": "kamlesh",
+    "7": "naseeruddin",
+    "8": "nikhil",
+    "9": "nikhil kere",
+    "10": "rakesh",
+    "11": "rutuja",
+    "12": "sakshi",
+    "13": "satish",
+    "14": "zafar"
+  }
+}

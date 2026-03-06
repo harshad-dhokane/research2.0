@@ -1,0 +1,47 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Jupyter checkpoints ───────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ── Epoch checkpoints only (116MB each — over GitHub limit, not needed to run)
+checkpoint_ep*.pth
+
+# ── NumPy binary arrays ───────────────────────────────────────────────────────
+*.npy
+*.npz
+
+# ── Annotated output videos (large, re-generatable) ──────────────────────────
+
+# ── Datasets (not pushed) ────────────────────────────────────────────────────
+AffectNet_Dataset/
+AffectNet_Aligned_224/
+AffectNet_Processed/
+Affect8_Workspace/
+Affectnet_v2/
+classroom_dataset/
+emonext/Dataset_Combined/
+Identity_v1/Identity_Dataset/
+Identity_v1/Identity_Split/
+Identity_v1/Identity_Aligned_224/
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+*.csv.bak
