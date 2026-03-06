@@ -757,121 +757,228 @@ def draw_face(frame: np.ndarray, track: FaceTrack,
     x1,y1,x2,y2 = max(0,int(x1)),max(0,int(y1)),min(fw-1,int(x2)),min(fh-1,int(y2))
     if x2-x1 < 4 or y2-y1 < 4: return
 
+    # Dynamic scale: reference designed for 720p
+    sc   = max(0.5, min(fh / 720.0, 2.5))
+    bw   = x2 - x1
+
     is_unknown = use_rejection and track.id_conf < REJECTION_THRESHOLD
     emo   = track.emotion
     ename = IDENTITY_NAMES[int(np.argmax(track.id_sims))] if IDENTITY_NAMES else "?"
-    id_color   = UNKNOWN_COLOR if is_unknown else (
+    id_color  = UNKNOWN_COLOR if is_unknown else (
         IDENTITY_COLORS[LABEL_TO_IDX.get(ename, 0) % len(IDENTITY_COLORS)]
         if IDENTITY_NAMES else (200, 200, 200))
-    emo_color  = EMOTION_COLORS.get(emo, (200, 200, 200))
+    emo_color = EMOTION_COLORS.get(emo, (200, 200, 200))
 
-    # Box — dual-colour corner brackets
-    corner = min(20, (x2-x1)//4, (y2-y1)//4)
-    thickness = 2
+    # Corner bracket brackets — scaled, thicker
+    corner    = min(int(36*sc), bw//4, (y2-y1)//4)
+    thickness = max(2, int(3*sc))
     for sx, sy, dx, dy in [(x1,y1,1,1),(x2,y1,-1,1),(x1,y2,1,-1),(x2,y2,-1,-1)]:
         cv2.line(frame, (sx, sy), (sx+dx*corner, sy), id_color, thickness)
         cv2.line(frame, (sx, sy), (sx, sy+dy*corner), id_color, thickness)
 
-    # Combined label:  "Name — Emotion"
-    id_str  = "Unknown" if is_unknown else ename.capitalize()
-    label   = f"{id_str}  |  {emo}  {track.emo_conf:.0%}"
-    conf_id = track.id_conf
+    # ── Main label: two lines stacked ──────────────────────────
+    id_str   = "Unknown" if is_unknown else ename.capitalize()
+    conf_id  = track.id_conf
+    font     = cv2.FONT_HERSHEY_SIMPLEX
+    # Scale font to be clearly readable regardless of resolution
+    fsc_name = max(0.70, min(1.20, bw / 180.0 * sc))
+    fsc_emo  = max(0.58, min(1.00, bw / 200.0 * sc))
+    thick    = max(2, int(2 * sc))
+    pad      = max(6, int(7 * sc))
 
-    font, fsc, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.52, 1
-    (tw, th), bl = cv2.getTextSize(label, font, fsc, thick)
-    lx = max(0, min(x1, fw-tw-10))
-    ly = max(th+8, y1-4)
-    _tint(frame, lx, ly-th-6, lx+tw+8, ly+bl, (18,18,18), 0.72)
-    cv2.rectangle(frame, (lx, ly-th-6), (lx+tw+8, ly+bl), id_color, 1)
-    cv2.putText(frame, label, (lx+4, ly-2), font, fsc, (245,245,245), thick, cv2.LINE_AA)
+    # Line 1: identity name (large)
+    line1 = id_str
+    (tw1, th1), bl1 = cv2.getTextSize(line1, font, fsc_name, thick)
+    # Line 2: emotion + confidence (slightly smaller)
+    line2 = f"{emo}  {track.emo_conf:.0%}"
+    (tw2, th2), bl2 = cv2.getTextSize(line2, font, fsc_emo, thick)
+
+    box_w  = max(tw1, tw2) + pad * 2
+    box_h  = th1 + th2 + pad * 3 + bl1
+    lx     = max(0, min(x1, fw - box_w - 4))
+    ly_top = max(0, y1 - box_h - 4)
+
+    # Dark semi-transparent background
+    _tint(frame, lx, ly_top, lx + box_w, ly_top + box_h, (10, 10, 10), 0.80)
+    cv2.rectangle(frame, (lx, ly_top), (lx + box_w, ly_top + box_h), id_color, max(1, thickness - 1))
+
+    # Draw name in identity colour
+    cv2.putText(frame, line1,
+                (lx + pad, ly_top + pad + th1),
+                font, fsc_name, id_color, thick, cv2.LINE_AA)
+    # Draw emotion in emotion colour, below the name
+    y_emo = ly_top + pad * 2 + th1 + th2
+    cv2.putText(frame, line2,
+                (lx + pad, y_emo),
+                font, fsc_emo, EMOTION_COLORS.get(emo, (240, 240, 240)), thick, cv2.LINE_AA)
 
     # Identity confidence badge (bottom-left of bbox)
-    badge = f"{conf_id:.0%}" if not is_unknown else "?"
-    cv2.putText(frame, badge, (x1+4, y2-6), cv2.FONT_HERSHEY_SIMPLEX, 0.38,
-                id_color, 1, cv2.LINE_AA)
+    badge     = f"ID {conf_id:.0%}" if not is_unknown else "?"
+    fsc_badge = max(0.45, 0.55 * sc)
+    (bw2, bh2), _ = cv2.getTextSize(badge, font, fsc_badge, max(1, int(sc)))
+    _tint(frame, x1, y2 - bh2 - 8, x1 + bw2 + 8, y2 + 2, (10, 10, 10), 0.70)
+    cv2.putText(frame, badge, (x1 + 4, y2 - 4), font,
+                fsc_badge, id_color, max(1, int(sc)), cv2.LINE_AA)
 
     if show_bars:
-        # ── Top-3 expression bars ──────────────────────────────
-        bar_w  = min(120, x2-x1)
-        bar_h  = 11
-        bar_x  = max(0, min(x2+6, fw-bar_w-2))
-        by     = y1
+        bar_h   = max(18, int(24 * sc))
+        bar_w   = min(int(200 * sc), bw)
+        bar_fsc = max(0.38, 0.46 * sc)
+
+        # ── Top-3 expression bars (right side of face) ────────
+        bar_x = max(0, min(x2+6, fw-bar_w-2))
         top3_e = np.argsort(track.emo_probs)[::-1][:3]
         for i, ei in enumerate(top3_e):
-            byi = by + i*(bar_h+2)
+            byi = y1 + i*(bar_h+3)
             if byi + bar_h > fh-30: break
-            ec  = EMOTION_COLORS.get(EMOTION_NAMES[ei], (180,180,180))
+            ec   = EMOTION_COLORS.get(EMOTION_NAMES[ei], (180,180,180))
             fill = int(track.emo_probs[ei] * bar_w)
             _tint(frame, bar_x, byi, bar_x+bar_w, byi+bar_h, (25,25,25), 0.70)
             if fill > 0:
-                _tint(frame, bar_x, byi, bar_x+fill, byi+bar_h, ec, 0.60)
-            cv2.rectangle(frame, (bar_x, byi), (bar_x+bar_w, byi+bar_h), (80,80,80), 1)
-            cv2.putText(frame, f"{EMOTION_NAMES[ei][:6]} {track.emo_probs[ei]:.0%}",
-                        (bar_x+2, byi+bar_h-2), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.29, (235,235,235), 1, cv2.LINE_AA)
+                _tint(frame, bar_x, byi, bar_x+fill, byi+bar_h, ec, 0.65)
+            cv2.rectangle(frame, (bar_x, byi), (bar_x+bar_w, byi+bar_h), (90,90,90), 1)
+            cv2.putText(frame, f"{EMOTION_NAMES[ei][:7]} {track.emo_probs[ei]:.0%}",
+                        (bar_x+3, byi+bar_h-3), font, bar_fsc, (235,235,235), 1, cv2.LINE_AA)
 
-        # ── Top-3 identity bars ────────────────────────────────
-        bar_x2 = max(0, x1-bar_w-6)
+        # ── Top-3 identity bars (left side, fallback to right) ─
+        bar_x2 = x1 - bar_w - 6
         if bar_x2 < 0: bar_x2 = max(0, min(x2+6, fw-bar_w-2))
         top3_i = np.argsort(track.id_sims)[::-1][:3]
         for i, ii in enumerate(top3_i):
-            byi = y1 + i*(bar_h+2)
+            byi = y1 + i*(bar_h+3)
             if byi + bar_h > fh-30: break
-            ic  = IDENTITY_COLORS[ii % len(IDENTITY_COLORS)]
-            sim = max(0, track.id_sims[ii])
+            ic   = IDENTITY_COLORS[ii % len(IDENTITY_COLORS)]
+            sim  = max(0.0, float(track.id_sims[ii]))
             fill = int(sim * bar_w)
             _tint(frame, bar_x2, byi, bar_x2+bar_w, byi+bar_h, (25,25,25), 0.70)
             if fill > 0:
-                _tint(frame, bar_x2, byi, bar_x2+fill, byi+bar_h, ic, 0.60)
-            cv2.rectangle(frame, (bar_x2, byi), (bar_x2+bar_w, byi+bar_h), (80,80,80), 1)
-            nm = IDENTITY_NAMES[ii][:8] if IDENTITY_NAMES else "?"
+                _tint(frame, bar_x2, byi, bar_x2+fill, byi+bar_h, ic, 0.65)
+            cv2.rectangle(frame, (bar_x2, byi), (bar_x2+bar_w, byi+bar_h), (90,90,90), 1)
+            nm = IDENTITY_NAMES[ii][:9] if IDENTITY_NAMES else "?"
             cv2.putText(frame, f"{nm} {sim:.0%}",
-                        (bar_x2+2, byi+bar_h-2), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.29, (235,235,235), 1, cv2.LINE_AA)
+                        (bar_x2+3, byi+bar_h-3), font, bar_fsc, (235,235,235), 1, cv2.LINE_AA)
 
 
-def draw_dashboard(frame: np.ndarray, tracks: List[FaceTrack],
-                   use_rejection: bool, mode: str, fps: float):
-    h, w = frame.shape[:2]
-    px, py = 10, 10
-    pw = 230
+def draw_dashboard(frame_h: int, tracks: List[FaceTrack],
+                   use_rejection: bool, mode: str, fps: float) -> np.ndarray:
+    """Build and return a scaled side panel to np.hstack with the video frame."""
+    sc   = max(0.8, min(frame_h / 720.0, 3.0))
+    pw   = int(380 * sc)          # wider panel
+    pad  = int(18 * sc)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fs_title = 1.1  * sc          # header title
+    fs_norm  = 0.85 * sc          # sub-header / face count
+    fs_item  = 0.82 * sc          # name + emotion label
+    fs_small = 0.65 * sc          # section headers / hints
+    th2  = max(2, int(2 * sc))
+    th1  = max(1, int(sc))
+    ls   = int(44 * sc)           # per-face row height
+
+    panel = np.zeros((frame_h, pw, 3), dtype=np.uint8)
+    panel[:] = (28, 28, 28)
+
+    # Vertical divider line
+    cv2.line(panel, (0, 0), (0, frame_h), (70, 70, 70), 2)
+
     lines = []
     for t in sorted(tracks, key=lambda x: x.id):
         is_unk = use_rejection and t.id_conf < REJECTION_THRESHOLD
         name   = "Unknown" if is_unk else t.identity.capitalize()
-        lines.append((name, t.emotion, t.emo_conf, t.id_conf, t.id))
+        lines.append((t.id, name, t.emotion, t.emo_conf, t.id_conf))
 
-    ph = 52 + len(lines) * 24 + 14
-    ph = min(ph, h - py - 10)
-    _tint(frame, px, py, px+pw, py+ph, (15,15,15), 0.82)
-    cv2.rectangle(frame, (px, py), (px+pw, py+ph), (90,90,90), 1)
+    y = int(34 * sc)
 
-    cv2.putText(frame, f"FaceAnalyzer | {mode} | {fps:.0f} FPS",
-                (px+8, py+18), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (200,200,200), 1)
-    cv2.putText(frame, f"Faces: {len(lines)}",
-                (px+8, py+36), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (170,170,170), 1)
-    cv2.line(frame, (px+6, py+44), (px+pw-6, py+44), (80,80,80), 1)
+    # ── Title ──────────────────────────────────────────────────
+    cv2.putText(panel, "FaceAnalyzer", (pad, y), font, fs_title,
+                (0, 220, 255), th2, cv2.LINE_AA)
+    y += int(34 * sc)
+    cv2.putText(panel, f"{mode}  |  {fps:.0f} FPS", (pad, y), font,
+                fs_small, (160, 160, 160), th1, cv2.LINE_AA)
+    y += int(30 * sc)
+    cv2.putText(panel, f"Faces detected: {len(lines)}", (pad, y), font,
+                fs_norm, (220, 220, 220), th1, cv2.LINE_AA)
+    y += int(ls * 0.85)
+    cv2.line(panel, (pad, y), (pw - pad, y), (80, 80, 80), max(1, int(sc)))
+    y += int(20 * sc)
+    cv2.putText(panel, "Identity  |  Expression", (pad, y), font,
+                fs_small, (0, 200, 255), th1, cv2.LINE_AA)
+    y += int(28 * sc)
 
-    for i, (name, emo, econf, iconf, tid) in enumerate(lines):
-        ly = py + 58 + i * 24
-        if ly + 14 > py + ph: break
-        ic = IDENTITY_COLORS[LABEL_TO_IDX.get(name.lower(), i) % len(IDENTITY_COLORS)] \
+    bh  = max(16, int(20 * sc))   # bar height — taller and easier to read
+    bar_max = pw - pad * 2
+
+    for tid, name, emo, econf, iconf in lines:
+        if y + int(ls * 3.2) > frame_h - pad: break
+        ic = IDENTITY_COLORS[LABEL_TO_IDX.get(name.lower(), tid) % len(IDENTITY_COLORS)] \
              if name != "Unknown" else UNKNOWN_COLOR
         ec = EMOTION_COLORS.get(emo, (180, 180, 180))
-        cv2.putText(frame, f"#{tid+1}", (px+6, ly), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.33, (140,140,140), 1)
-        cv2.putText(frame, name, (px+28, ly), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.36, ic, 1, cv2.LINE_AA)
-        cv2.putText(frame, f"→ {emo} {econf:.0%}", (px+120, ly),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.34, ec, 1, cv2.LINE_AA)
+
+        # ── Face # + Name (large, coloured) ──────────────────
+        cv2.putText(panel, f"#{tid+1}", (pad, y), font,
+                    fs_small, (140, 140, 140), th1, cv2.LINE_AA)
+        cv2.putText(panel, name, (pad + int(42 * sc), y), font,
+                    fs_item * 1.10, ic, th2, cv2.LINE_AA)
+        y += int(36 * sc)
+
+        # ── Expression label (large, emotion colour) ─────────
+        cv2.putText(panel, f"{emo}  {econf:.0%}",
+                    (pad + int(42 * sc), y), font,
+                    fs_item, EMOTION_COLORS.get(emo, (220, 220, 220)), th2, cv2.LINE_AA)
+        y += int(30 * sc)
+
+        # ── Expression confidence bar ─────────────────────────
+        fill = int(max(0.0, econf) * bar_max)
+        _tint(panel, pad, y, pad + bar_max, y + bh, (40, 40, 40), 0.85)
+        if fill > 0:
+            _tint(panel, pad, y, pad + fill, y + bh, ec, 0.70)
+        cv2.rectangle(panel, (pad, y), (pad + bar_max, y + bh), (80, 80, 80), 1)
+        cv2.putText(panel, f"{emo[:8]}  {econf:.0%}",
+                    (pad + 4, y + bh - 4), font,
+                    max(0.42, 0.50 * sc), (240, 240, 240), 1, cv2.LINE_AA)
+        y += bh + int(8 * sc)
+
+        # ── Identity similarity bar ───────────────────────────
+        id_fill = int(max(0.0, iconf) * bar_max)
+        _tint(panel, pad, y, pad + bar_max, y + bh, (40, 40, 40), 0.85)
+        if id_fill > 0:
+            _tint(panel, pad, y, pad + id_fill, y + bh, ic, 0.65)
+        cv2.rectangle(panel, (pad, y), (pad + bar_max, y + bh), (80, 80, 80), 1)
+        cv2.putText(panel, f"ID conf: {iconf:.0%}",
+                    (pad + 4, y + bh - 4), font,
+                    max(0.42, 0.50 * sc), (220, 220, 220), 1, cv2.LINE_AA)
+        y += bh + int(16 * sc)
+
+        cv2.line(panel, (pad, y), (pw - pad, y), (60, 60, 60), 1)
+        y += int(14 * sc)
+
+    # ── Controls hint at bottom ───────────────────────────────
+    ctrl = ["q:Quit  s:Screenshot",
+            "b:Bars  r:Rejection  d:Dashboard"]
+    if mode.lower() == "video":
+        ctrl.append("SPACE:Pause  ←/→:Seek 5s")
+    yb = frame_h - int(len(ctrl) * 22 * sc) - pad
+    for ht in ctrl:
+        if yb > y:
+            cv2.putText(panel, ht, (pad, yb), font,
+                        max(0.38, 0.44 * sc), (95, 95, 95), 1, cv2.LINE_AA)
+        yb += int(22 * sc)
+
+    return panel
 
 
-def draw_hud(frame, mode, fps, use_tta, use_rejection):
+def draw_hud(frame, mode, fps, use_tta, use_rejection, show_bars):
     h, w = frame.shape[:2]
-    hints = "q:Quit  s:Screenshot  t:TTA  f:Bars  r:Rejection  d:Dashboard"
-    if mode == "video": hints += "  SPACE:Pause  ←→:Seek"
-    cv2.putText(frame, hints, (10, h-12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.36, (120,120,120), 1)
+    sc  = max(0.6, min(h / 720.0, 2.0))
+    fsc = max(0.45, 0.52 * sc)
+    status = (f"FPS:{fps:.0f}  "
+              f"Bars:{'ON' if show_bars else 'off'}  "
+              f"Rej:{'ON' if use_rejection else 'off'}  "
+              f"TTA:{'ON' if use_tta else 'off'}  "
+              "| b:Bars  r:Rej  d:Dash  s:Shot  q:Quit")
+    (sw, sh), _ = cv2.getTextSize(status, cv2.FONT_HERSHEY_SIMPLEX, fsc, 1)
+    _tint(frame, 0, h - sh - 14, sw + 12, h, (10, 10, 10), 0.65)
+    cv2.putText(frame, status,
+                (8, h - 8), cv2.FONT_HERSHEY_SIMPLEX, fsc, (170, 170, 170), 1, cv2.LINE_AA)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -879,60 +986,29 @@ def draw_hud(frame, mode, fps, use_tta, use_rejection):
 # ═══════════════════════════════════════════════════════════════════
 
 def mode_selector() -> Tuple[str, Optional[str]]:
-    """Show a simple GUI window to pick webcam or video."""
-    win = "FaceAnalyzer — Select Mode"
-    W, H = 480, 280
-    canvas = np.zeros((H, W, 3), dtype=np.uint8)
-    cv2.namedWindow(win, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(win, W, H)
-    # Force the window to actually render before attaching the callback
-    cv2.imshow(win, canvas)
-    cv2.waitKey(1)
-
-    selected = [None]   # mutable for closure
-
-    def on_mouse(event, x, y, flags, _):
-        if event != cv2.EVENT_LBUTTONDOWN: return
-        if 60 <= y <= 130:
-            if 40 <= x <= W-40: selected[0] = "webcam"
-        elif 150 <= y <= 220:
-            if 40 <= x <= W-40: selected[0] = "video"
-
-    cv2.setMouseCallback(win, on_mouse)
-
-    while selected[0] is None:
-        canvas[:] = (25, 25, 25)
-        cv2.putText(canvas, "FaceAnalyzer", (120, 45),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
-        cv2.putText(canvas, "Identity + Expression in real-time", (60, 68),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (160,160,160), 1)
-
-        for rect, label, color in [
-            ((40, 80, W-40, 130), "Webcam  (live feed)",  (0, 160, 80)),
-            ((40,150, W-40, 200), "Video File  (select)", (0, 100, 200)),
-        ]:
-            cv2.rectangle(canvas, (rect[0],rect[1]), (rect[2],rect[3]), color, -1)
-            cv2.rectangle(canvas, (rect[0],rect[1]), (rect[2],rect[3]), (255,255,255), 1)
-            cv2.putText(canvas, label,
-                        (rect[0]+20, rect[1]+(rect[3]-rect[1])//2+6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255,255,255), 2)
-
-        cv2.putText(canvas, "or press  W = Webcam    V = Video    Q = Quit",
-                    (28, 245), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (120,120,120), 1)
-        cv2.imshow(win, canvas)
-        key = cv2.waitKey(30) & 0xFF
-        if key in (ord('q'), 27):
-            cv2.destroyWindow(win); return "quit", None
-        if key == ord('w'): selected[0] = "webcam"
-        if key == ord('v'): selected[0] = "video"
-
-    cv2.destroyWindow(win)
-    video_path = None
-    if selected[0] == "video":
-        video_path = _pick_video()
-        if video_path is None:
-            print("  No video selected."); return "quit", None
-    return selected[0], video_path
+    """Terminal-based mode selector (avoids Qt NULL-handle race on Wayland/X11)."""
+    print("\n" + "─"*52)
+    print("  Select mode:")
+    print("    [1]  Webcam  (live feed)")
+    print("    [2]  Video file")
+    print("    [q]  Quit")
+    print("─"*52)
+    while True:
+        try:
+            choice = input("  Choice [1/2/q]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return "quit", None
+        if choice in ("q", "quit", "exit"):
+            return "quit", None
+        if choice in ("1", "w", "webcam"):
+            return "webcam", None
+        if choice in ("2", "v", "video"):
+            video_path = _pick_video()
+            if video_path is None:
+                print("  No video selected.")
+                return "quit", None
+            return "video", video_path
+        print("  Please enter 1, 2, or q.")
 
 
 def _pick_video() -> Optional[str]:
@@ -1062,13 +1138,20 @@ def run_webcam(emo_model, dpain_model, centroids, yunet_detectors, device):
         print("❌ Cannot open webcam."); sys.exit(1)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    print(f"  ✅ Webcam: {int(cap.get(3))}×{int(cap.get(4))}")
+    fw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    fh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"  ✅ Webcam: {fw}×{fh}")
+
+    # Side-panel width (compute once from frame height)
+    _sc = max(0.8, min(fh / 720.0, 3.0))
+    panel_w = int(320 * _sc)
 
     worker = DetectionWorker(emo_model, dpain_model, centroids, yunet_detectors, device)
     fps_buf = deque(maxlen=30)
     ss_cnt = 0; show_bars = True; show_dash = True; use_tta = False; use_rej = True
     win = "FaceAnalyzer — Webcam"
     cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(win, min(1920, fw + panel_w), min(1080, fh))
 
     try:
         while True:
@@ -1078,26 +1161,34 @@ def run_webcam(emo_model, dpain_model, centroids, yunet_detectors, device):
 
             worker.push_frame(frame)
             tracks = worker.get_tracks()
+            fps_now = float(np.mean(fps_buf)) if fps_buf else 0.0
 
             for t in tracks:
                 draw_face(frame, t, show_bars, use_rej)
+            draw_hud(frame, "webcam", fps_now, use_tta, use_rej, show_bars)
+
             if show_dash:
-                draw_dashboard(frame, tracks, use_rej, "Webcam", np.mean(fps_buf) if fps_buf else 0)
-            draw_hud(frame, "webcam", np.mean(fps_buf) if fps_buf else 0, use_tta, use_rej)
+                panel   = draw_dashboard(fh, tracks, use_rej, "Webcam", fps_now)
+                display = np.hstack([frame, panel])
+            else:
+                display = frame
 
             fps_buf.append(1.0 / max(time.time()-t0, 1e-6))
-            cv2.imshow(win, frame)
+            cv2.imshow(win, display)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord('q'), 27): break
             elif key == ord('s'):
                 ss_cnt += 1
                 p = SCREENSHOT_DIR / f"webcam_{ss_cnt:04d}.png"
-                cv2.imwrite(str(p), frame)
+                cv2.imwrite(str(p), display)
                 print(f"  📸 {p.name}")
             elif key == ord('t'): use_tta = not use_tta
-            elif key == ord('f'): show_bars = not show_bars
+            elif key == ord('b'): show_bars = not show_bars
             elif key == ord('r'): use_rej = not use_rej
-            elif key == ord('d'): show_dash = not show_dash
+            elif key == ord('d'):
+                show_dash = not show_dash
+                cv2.resizeWindow(win,
+                    min(1920, fw + (panel_w if show_dash else 0)), min(1080, fh))
     except KeyboardInterrupt:
         pass
     finally:
@@ -1115,6 +1206,10 @@ def run_video(video_path: str, emo_model, dpain_model, centroids,
     vh    = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"  ✅ Video: {Path(video_path).name}  {vw}×{vh}  {fps_v:.1f}fps  {total} frames")
 
+    # Side-panel width
+    _sc = max(0.8, min(vh / 720.0, 3.0))
+    panel_w = int(320 * _sc)
+
     worker = DetectionWorker(emo_model, dpain_model, centroids, yunet_detectors, device)
     fps_buf = deque(maxlen=30)
     ss_cnt = 0; show_bars = True; show_dash = True
@@ -1122,7 +1217,7 @@ def run_video(video_path: str, emo_model, dpain_model, centroids,
     frame_idx = 0; writer = None; recording = False
     win = f"FaceAnalyzer — {Path(video_path).name}"
     cv2.namedWindow(win, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(win, min(vw, 1440), min(vh+50, 860))
+    cv2.resizeWindow(win, min(1920, vw + panel_w), min(1080, vh))
 
     ret, frame = cap.read()
     if not ret: print("  Cannot read first frame."); sys.exit(1)
@@ -1146,42 +1241,48 @@ def run_video(video_path: str, emo_model, dpain_model, centroids,
             display = cur_frame.copy()
             worker.push_frame(cur_frame)
             tracks = worker.get_tracks()
+            fps_now = float(np.mean(fps_buf)) if fps_buf else 0.0
 
             for t in tracks:
                 draw_face(display, t, show_bars, use_rej)
-                # accumulate summary
                 if not paused:
                     is_unk = use_rej and t.id_conf < REJECTION_THRESHOLD
                     pname  = "Unknown" if is_unk else t.identity.capitalize()
                     summary[pname][t.emotion] += 1
 
-            if show_dash:
-                draw_dashboard(display, tracks, use_rej, "Video",
-                               np.mean(fps_buf) if fps_buf else 0)
-
-            # Progress bar
-            prog = frame_idx / max(total-1, 1)
-            bh_pbar = 8
-            bary = display.shape[0] - bh_pbar - 2
-            barw = display.shape[1]
-            cv2.rectangle(display, (0, bary), (barw, bary+bh_pbar), (50,50,50), -1)
-            cv2.rectangle(display, (0, bary), (int(prog*barw), bary+bh_pbar), (0,140,255), -1)
-            ts = f"{int(frame_idx/fps_v//60):02d}:{int(frame_idx/fps_v%60):02d} / " \
-                 f"{int(total/fps_v//60):02d}:{int(total/fps_v%60):02d}"
-            cv2.putText(display, ts, (6, bary-4), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (180,180,180), 1)
+            # Progress bar (drawn on video frame before panel is added)
+            sc_pbar = max(0.5, min(vh / 720.0, 2.5))
+            pbar_h  = max(8, int(22 * sc_pbar))
+            bary    = display.shape[0] - pbar_h - 2
+            prog    = frame_idx / max(total - 1, 1)
+            cv2.rectangle(display, (0, bary), (vw, bary + pbar_h), (40, 40, 40), -1)
+            cv2.rectangle(display, (0, bary),
+                          (int(prog * vw), bary + pbar_h), (0, 140, 255), -1)
+            ts = (f"{int(frame_idx/fps_v//60):02d}:{int(frame_idx/fps_v%60):02d} / "
+                  f"{int(total/fps_v//60):02d}:{int(total/fps_v%60):02d}")
+            cv2.putText(display, ts, (8, bary - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, max(0.35, 0.42*sc_pbar),
+                        (180, 180, 180), 1)
             if paused:
-                cv2.putText(display, "PAUSED", (barw-80, bary-4),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (200,200,100), 1)
+                cv2.putText(display, "PAUSED", (vw - int(90*sc_pbar), bary - 6),
+                            cv2.FONT_HERSHEY_SIMPLEX, max(0.38, 0.44*sc_pbar),
+                            (200, 200, 100), 1)
             if recording:
-                cv2.circle(display, (display.shape[1]-18, 18), 8, (0,0,220), -1)
+                cv2.circle(display, (vw - 18, 18), max(6, int(8*sc_pbar)), (0, 0, 220), -1)
 
-            draw_hud(display, "video", np.mean(fps_buf) if fps_buf else 0, use_tta, use_rej)
+            draw_hud(display, "video", fps_now, use_tta, use_rej, show_bars)
+
+            if show_dash:
+                panel   = draw_dashboard(vh, tracks, use_rej, "Video", fps_now)
+                out     = np.hstack([display, panel])
+            else:
+                out = display
 
             if recording and writer is not None:
-                writer.write(display)
+                writer.write(out)
 
-            fps_buf.append(1.0 / max(time.time()-t0, 1e-6))
-            cv2.imshow(win, display)
+            fps_buf.append(1.0 / max(time.time() - t0, 1e-6))
+            cv2.imshow(win, out)
 
             wait = 30 if paused else max(1, int(1000/fps_v - (time.time()-t0)*1000))
             key  = cv2.waitKey(wait) & 0xFF
@@ -1190,25 +1291,26 @@ def run_video(video_path: str, emo_model, dpain_model, centroids,
             elif key == ord('s'):
                 ss_cnt += 1
                 p = SCREENSHOT_DIR / f"video_{ss_cnt:04d}.png"
-                cv2.imwrite(str(p), display); print(f"  📸 {p.name}")
+                cv2.imwrite(str(p), out); print(f"  📸 {p.name}")
             elif key == ord('t'): use_tta = not use_tta
-            elif key == ord('f'): show_bars = not show_bars
+            elif key == ord('b'): show_bars = not show_bars
             elif key == ord('r'): use_rej = not use_rej
-            elif key == ord('d'): show_dash = not show_dash
-            elif key == 81:   # LEFT
+            elif key == ord('d'):
+                show_dash = not show_dash
+                cv2.resizeWindow(win,
+                    min(1920, vw + (panel_w if show_dash else 0)), min(1080, vh))
+            elif key == 81:   # LEFT arrow
                 tgt = max(0, frame_idx - int(5*fps_v))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, tgt); frame_idx = tgt
                 ret, f = cap.read()
                 if ret: cur_frame = f
                 worker.tracker.clear()
-            elif key == 83:   # RIGHT
-                tgt = min(total-1, frame_idx + int(5*fps_v))
+            elif key == 83:   # RIGHT arrow
+                tgt = min(total - 1, frame_idx + int(5*fps_v))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, tgt); frame_idx = tgt
                 ret, f = cap.read()
                 if ret: cur_frame = f
                 worker.tracker.clear()
-            elif key == ord('r') and not recording:
-                pass  # r is rejection — use capital R or separate key if needed
 
     except KeyboardInterrupt:
         pass
