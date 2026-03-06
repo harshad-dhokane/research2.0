@@ -2,7 +2,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║         Combined Face Identity + Expression Analyzer                    ║
-║  Runs DPAIN (who) and EmoNeXt (what emotion) on every face at once      ║
+║  Runs DPAIN (who) and EmoNeXt (what emotion) on every face simultaneously      ║
 ║  Each face gets:  PersonName — Expression  label + confidence bars      ║
 ╠══════════════════════════════════════════════════════════════════════════╣
 ║  Usage:                                                                 ║
