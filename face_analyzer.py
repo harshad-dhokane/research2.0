@@ -885,6 +885,9 @@ def mode_selector() -> Tuple[str, Optional[str]]:
     canvas = np.zeros((H, W, 3), dtype=np.uint8)
     cv2.namedWindow(win, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(win, W, H)
+    # Force the window to actually render before attaching the callback
+    cv2.imshow(win, canvas)
+    cv2.waitKey(1)
 
     selected = [None]   # mutable for closure
 
